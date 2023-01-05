@@ -92,7 +92,7 @@ def parse_args():
                     help='run validation and test after every epoch')
     exclusive_group(group=general, name='env', default=False,
                     help='print info about execution env')
-    exclusive_group(group=general, name='cuda', default=True,
+    exclusive_group(group=general, name='cuda', default=False,
                     help='enables cuda')
     exclusive_group(group=general, name='cudnn', default=True,
                     help='enables cudnn')
@@ -173,6 +173,14 @@ def parse_args():
                      (including special BOS and EOS tokens)')
     val.add_argument('--val-loader-workers', default=0, type=int,
                      help='number of workers for validation data loading')
+    # oob
+    val.add_argument('--precision', default="float32", type=str, help='precision')
+    val.add_argument('--channels_last', default=1, type=int, help='Use NHWC or not')
+    val.add_argument('--ipex', action='store_true', default=False, help='enable ipex')
+    val.add_argument('--jit', action='store_true', default=False, help='enable JIT')
+    val.add_argument('--profile', action='store_true', default=False, help='collect timeline')
+    val.add_argument('--num_iter', default=0, type=int, help='test iterations')
+    val.add_argument('--num_warmup', default=0, type=int, help='test warmup')
 
     # test
     test = parser.add_argument_group('test setup')
@@ -443,6 +451,7 @@ def main():
         cuda=args.cuda,
         distributed=distributed,
         intra_epoch_eval=args.intra_epoch_eval,
+        args=args,
         translator=translator)
 
     trainer_options['model'] = model
@@ -472,12 +481,23 @@ def main():
         train_loader.sampler.set_epoch(epoch)
 
         trainer.epoch = epoch
-        train_loss, train_perf = trainer.optimize(train_loader)
+        if not args.eval:
+            train_loss, train_perf = trainer.optimize(train_loader)
 
         # evaluate on validation set
         if args.eval:
             logging.info(f'Running validation on dev set')
-            val_loss, val_perf = trainer.evaluate(val_loader)
+            if args.precision == "bfloat16":
+                print('---- Enable AMP bfloat16')
+                with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                    val_loss, val_perf = trainer.evaluate(val_loader)
+            elif args.precision == "float16":
+                print('---- Enable AMP float16')
+                with torch.cuda.amp.autocast(enabled=True, dtype=torch.float16):
+                    val_loss, val_perf = trainer.evaluate(val_loader)
+            else:
+                val_loss, val_perf = trainer.evaluate(val_loader)
+            exit(0)
 
             # remember best prec@1 and save checkpoint
             gnmt_print(key=mlperf_log.TRAIN_CHECKPOINT, sync=False)
