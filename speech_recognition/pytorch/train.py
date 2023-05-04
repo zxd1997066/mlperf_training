@@ -41,6 +41,29 @@ parser.add_argument('--seed', default=0xdeadbeef, type=int, help='Random Seed')
 parser.add_argument('--acc', default=23.0, type=float, help='Target WER')
 
 parser.add_argument('--start_epoch', default=-1, type=int, help='Number of epochs at which to start from')
+parser.add_argument('--batch_size', default=1, type=int, help='batch size to inference')
+parser.add_argument('--ipex', action='store_true', default=False,
+                    help='use intel pytorch extension')
+parser.add_argument('--precision', type=str, default="float32",
+                    help='precision, float32, bfloat16')
+parser.add_argument('--arch', type=str, default="",
+                    help='model name')
+parser.add_argument('--eval_iter', type=int, default=0,
+                    help='iter')
+parser.add_argument('--eval_warmup', type=int, default=5,
+                    help='warmup')
+parser.add_argument('--jit', action='store_true', default=False,
+                    help='enable ipex jit fusionpath')
+parser.add_argument('--cuda', action='store_true', default=False,
+                    help='use CUDA')
+parser.add_argument('--evaluate', action='store_true', default=False,
+                    help='evaluate only')
+parser.add_argument('--channels_last', type=int, default=1,
+                    help='use the channels last')
+parser.add_argument('--profile', action='store_true', default=False,
+                    help='')
+
+
 
 def to_np(x):
     return x.data.cpu().numpy()
@@ -66,9 +89,15 @@ class AverageMeter(object):
 
 def main():
     args = parser.parse_args()
+    params.batch_size = args.batch_size
 
     torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    if args.cuda:
+        torch.cuda.manual_seed_all(args.seed)
+        device = "cuda"
+    else:
+        params.cuda = False
+        device = "cpu"
 
     if params.rnn_type == 'gru' and params.rnn_act_type != 'tanh':
       print("ERROR: GRU does not currently support activations other than tanh")
@@ -106,12 +135,13 @@ def main():
                       noise_prob=params.noise_prob,
                       noise_levels=(params.noise_min, params.noise_max))
 
-    train_dataset = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=params.train_manifest, labels=labels,
-                                       normalize=True, augment=params.augment)
+    if not args.evaluate:
+        train_dataset = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=params.train_manifest, labels=labels,
+                                           normalize=True, augment=params.augment)
+        train_loader = AudioDataLoader(train_dataset, batch_size=params.batch_size,
+                                       num_workers=1)
     test_dataset = SpectrogramDataset(audio_conf=audio_conf, manifest_filepath=params.val_manifest, labels=labels,
                                       normalize=True, augment=False)
-    train_loader = AudioDataLoader(train_dataset, batch_size=params.batch_size,
-                                   num_workers=1)
     test_loader = AudioDataLoader(test_dataset, batch_size=params.batch_size,
                                   num_workers=1)
 
@@ -132,6 +162,45 @@ def main():
                                 momentum=params.momentum, nesterov=True,
                                 weight_decay = params.l2)
     decoder = GreedyDecoder(labels)
+
+    if args.evaluate:
+        if args.channels_last:
+            oob_model = model
+            oob_model = oob_model.to(memory_format=torch.channels_last)
+            model = oob_model
+            print("---- Use the channels last format.")
+        if args.ipex:
+            model.eval()
+            import intel_extension_for_pytorch as ipex
+            if args.precision == "bfloat16":
+                model = ipex.optimize(model, dtype=torch.bfloat16, inplace=True)
+                print("[INFO] Running IPEX bfloat16 path")
+            else:
+                model = ipex.optimize(model, dtype=torch.float32, inplace=True)
+                print("[INFO] Running IPEX float32 path")
+        else:
+            model.to(device)
+        if args.jit:
+            jit_inputs = torch.randn(args.batch_size, 1, 161, 1)
+            with torch.no_grad():
+                model = torch.jit.trace(model, jit_inputs)
+                print("---- Use trace model.")
+                if args.ipex:
+                    model = torch.jit.freeze(model)
+                for i in range(10):
+                    model(jit_inputs)
+        batch_time = AverageMeter()
+        if args.precision == "bfloat16":
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
+        else:
+            wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
+        # print('inference Throughput: %0.3f samples/s' % (params.batch_size / batch_time.avg))
+        latency = batch_time.avg / params.batch_size * 1000
+        throughput = params.batch_size / batch_time.avg
+        print("Latency:\t {:.3f} ms".format(latency))
+        print("Throughput:\t {:.2f} samples/s".format(throughput))
+        exit()
 
     if args.continue_from:
         print("Loading checkpoint model %s" % args.continue_from)
@@ -179,9 +248,9 @@ def main():
             inputs, targets, input_percentages, target_sizes = data
             # measure data loading time
             data_time.update(time.time() - end)
-            inputs = Variable(inputs, requires_grad=False)
-            target_sizes = Variable(target_sizes, requires_grad=False)
-            targets = Variable(targets, requires_grad=False)
+            inputs = Variable(inputs, requires_grad=True)
+            target_sizes = Variable(target_sizes, requires_grad=True)
+            targets = Variable(targets, requires_grad=True)
 
             if params.cuda:
                 inputs = inputs.cuda()
@@ -190,7 +259,7 @@ def main():
             out = out.transpose(0, 1)  # TxNxH
 
             seq_length = out.size(0)
-            sizes = Variable(input_percentages.mul_(int(seq_length)).int(), requires_grad=False)
+            sizes = Variable(input_percentages.mul_(int(seq_length)).int(), requires_grad=True)
 
             ctc_start_time = time.time()
             loss = criterion(out, targets, sizes, target_sizes)
@@ -243,9 +312,8 @@ def main():
 
         start_iter = 0  # Reset start iteration for next epoch
         total_cer, total_wer = 0, 0
-        model.eval()
 
-        wer, cer = eval_model( model, test_loader, decoder)
+        wer, cer = eval_model( model, test_loader, decoder, args)
 
         loss_results[epoch] = avg_loss
         wer_results[epoch] = wer

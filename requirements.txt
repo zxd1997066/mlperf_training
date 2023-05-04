@@ -1,0 +1,4 @@
+Pillow
+python-Levenshtein
+librosa
+resampy==0.3.1

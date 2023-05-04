@@ -140,12 +140,12 @@ class DeepSpeech(nn.Module):
         num_classes = len(self._labels)
 
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=(41, 11), stride=(2, 2)),
+            nn.Conv2d(1, 32, kernel_size=(41, 11), stride=(2, 2), padding=(0, 5)),
             nn.BatchNorm2d(32),
-            nn.Hardtanh(0, 20, inplace=True),
-            nn.Conv2d(32, 32, kernel_size=(21, 11), stride=(2, 1)),
+            nn.Hardtanh(0.0, 20.0, inplace=True),
+            nn.Conv2d(32, 32, kernel_size=(21, 11), stride=(2, 1), padding=(0, 5)),
             nn.BatchNorm2d(32),
-            nn.Hardtanh(0, 20, inplace=True)
+            nn.Hardtanh(0.0, 20.0, inplace=True)
         )
         # Based on above convolutions and spectrogram size using conv formula (W - F + 2P)/ S+1
         rnn_input_size = int(math.floor((sample_rate * window_size) / 2) + 1)
@@ -197,7 +197,7 @@ class DeepSpeech(nn.Module):
         x = self.conv(x)
 
         sizes = x.size()
-        x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension
+        x = x.reshape(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension
         x = x.transpose(1, 2).transpose(0, 1).contiguous()  # TxNxH
 
         x = self.rnns(x)
