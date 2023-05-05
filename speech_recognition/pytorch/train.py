@@ -198,8 +198,8 @@ def main():
         # print('inference Throughput: %0.3f samples/s' % (params.batch_size / batch_time.avg))
         latency = batch_time.avg / params.batch_size * 1000
         throughput = params.batch_size / batch_time.avg
-        print("Latency:\t {:.3f} ms".format(latency))
-        print("Throughput:\t {:.2f} samples/s".format(throughput))
+        print("inference latency:\t {:.3f} ms".format(latency))
+        print("inference Throughput:\t {:.2f} samples/s".format(throughput))
         exit()
 
     if args.continue_from:
