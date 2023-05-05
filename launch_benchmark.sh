@@ -21,10 +21,10 @@ function main {
     fi
 
     pip install -r ${workload_dir}/requirements.txt
-    #pip uninstall -y numba llvmlite
+    pip uninstall -y numba llvmlite
     conda install -c numba llvmdev -y
-    #pip install git+https://github.com/numba/llvmlite.git
-    #pip install -U numba==0.48
+    pip install git+https://github.com/numba/llvmlite.git
+    pip install -U numba
 
     if [ ! -d warp-ctc ];then
         git clone https://github.com/SeanNaren/warp-ctc.git
@@ -43,7 +43,7 @@ function main {
     if [ ! -e dataset ];then
         ln -sf /home2/pytorch-broad-models/DeepSpeech2/LibriSpeech_dataset/ ./dataset
     fi
-    
+
     # if multiple use 'xxx,xxx,xxx'
     model_name_list=($(echo "${model_name}" |sed 's/,/ /g'))
     batch_size_list=($(echo "${batch_size}" |sed 's/,/ /g'))
