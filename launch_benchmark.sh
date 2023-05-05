@@ -12,11 +12,10 @@ function main {
     set_environment
 
     # requirements
-    if [ "${DATASET_DIR}" == "" ] || [ "${CONFIG_DIR}" == "" ];then
+    if [ "${CKPT_DIR}" == "" ];then
         set +x
-        echo "[ERROR] Please set DATASET_DIR and CONFIG_DIR before launch"
-        echo "  export DATASET_DIR=/path/to/dataset/dir"
-        echo "  export CONFIG_DIR=/path/to/config"
+        echo "[ERROR] Please set CKPT_DIR before launch"
+        echo "  export CKPT_DIR=/path/to/checkpoint"
         exit 1
         set -x
     fi
