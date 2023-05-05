@@ -40,6 +40,10 @@ function main {
     rsync -avz ${workload_dir}/*.csv .
     cd pytorch/
 
+    if [ ! -e dataset ];then
+        ln -sf /home2/pytorch-broad-models/DeepSpeech2/LibriSpeech_dataset/ ./dataset
+    fi
+    
     # if multiple use 'xxx,xxx,xxx'
     model_name_list=($(echo "${model_name}" |sed 's/,/ /g'))
     batch_size_list=($(echo "${batch_size}" |sed 's/,/ /g'))
