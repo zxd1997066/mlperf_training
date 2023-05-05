@@ -1,7 +1,5 @@
 #!/bin/bash
 set -xe
-# import common funcs
-source ../../common.sh
 
 # deepspeech
 function main {
