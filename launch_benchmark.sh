@@ -23,8 +23,8 @@ function main {
     pip install -r ${workload_dir}/requirements.txt
     pip uninstall -y numba llvmlite
     conda install -c numba llvmdev -y
-    pip install git+https://github.com/numba/llvmlite.git
-    pip install -U numba==0.48
+    #pip install git+https://github.com/numba/llvmlite.git
+    #pip install -U numba==0.48
 
     if [ ! -d warp-ctc ];then
         git clone https://github.com/SeanNaren/warp-ctc.git
