@@ -31,6 +31,8 @@ def parse_args():
                         help='number of epochs for training')
     parser.add_argument('-b', '--batch-size', type=int, default=256,
                         help='number of examples for each iteration')
+    parser.add_argument('--warmup-iter', type=int, default=5)
+    parser.add_argument('--num-iter', type=int, default=0)
     parser.add_argument('--valid-batch-size', type=int, default=2**20,
                         help='number of examples in each validation chunk')
     parser.add_argument('-f', '--factors', type=int, default=8,
@@ -68,38 +70,123 @@ def parse_args():
                         help='pre-process data on cpu to save memory')
     parser.add_argument('--random_negatives', action='store_true',
                         help='do not check train negatives for existence in dataset')
+    parser.add_argument('--ipex', action='store_true',
+                        help='use ipex')
+    parser.add_argument('--jit', action='store_true',
+                        help='use fusion jit model')
+    parser.add_argument('--evaluate', action='store_true',
+                        help='evaluate only')
+    parser.add_argument('--precision', type=str, default="float32",
+                        help='precision, float32, int8, bfloat16')
+    parser.add_argument('--channels_last', type=int, default=1, help='use channels last format')
+    parser.add_argument('--profile', action='store_true', help='Trigger profile on current topology.')
     return parser.parse_args()
 
 
+def save_profile_result(filename, table):
+    import xlsxwriter
+    workbook = xlsxwriter.Workbook(filename)
+    worksheet = workbook.add_worksheet()
+    keys = ["Name", "Self CPU total %", "Self CPU total", "CPU total %" , "CPU total", \
+            "CPU time avg", "Number of Calls"]
+    for j in range(len(keys)):
+        worksheet.write(0, j, keys[j])
+
+    lines = table.split("\n")
+    for i in range(3, len(lines)-4):
+        words = lines[i].split(" ")
+        j = 0
+        for word in words:
+            if not word == "":
+                worksheet.write(i-2, j, word)
+                j += 1
+    workbook.close()
+
+
 # TODO: val_epoch is not currently supported on cpu
-def val_epoch(model, x, y, dup_mask, real_indices, K, samples_per_user, num_user, output=None,
-              epoch=None, loss=None):
+def val_epoch(model, opt, x, y, dup_mask, real_indices, K, samples_per_user, num_user, output=None,
+              epoch=None, loss=None, device='cpu'):
 
     start = datetime.now()
     log_2 = math.log(2)
 
     model.eval()
-    hits = torch.tensor(0., device='cuda')
-    ndcg = torch.tensor(0., device='cuda')
+    hits = torch.tensor(0., device=device)
+    ndcg = torch.tensor(0., device=device)
+    batch_size = None
+
+    total_time = 0
+    total_sample = 0
+    batch_time_list = []
 
     with torch.no_grad():
         for i, (u,n) in enumerate(zip(x,y)):
-            res = model(u.cuda().view(-1), n.cuda().view(-1), sigmoid=True).detach().view(-1,samples_per_user)
-            # set duplicate results for the same item to -1 before topk
-            res[dup_mask[i]] = -1
-            out = torch.topk(res,K)[1]
-            # topk in pytorch is stable(if not sort)
-            # key(item):value(predicetion) pairs are ordered as original key(item) order
-            # so we need the first position of real item(stored in real_indices) to check if it is in topk
-            ifzero = (out == real_indices[i].cuda().view(-1,1))
-            hits += ifzero.sum()
-            ndcg += (log_2 / (torch.nonzero(ifzero)[:,1].view(-1).to(torch.float)+2).log_()).sum()
+            if opt.num_iter != 0 and i > opt.num_iter:
+                break
+            if batch_size is None:
+                batch_size = u.size()[0]
+            start = time.time()
+            if opt.profile:
+                with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU], record_shapes=True) as prof:
+                    res = model(u.to(device).view(-1), n.to(device).view(-1), sigmoid=True).detach().view(-1,samples_per_user)
+                    # set duplicate results for the same item to -1 before topk
+                    res[dup_mask[i]] = -1
+                    out = torch.topk(res,K)[1]
+                    # topk in pytorch is stable(if not sort)
+                    # key(item):value(predicetion) pairs are ordered as original key(item) order
+                    # so we need the first position of real item(stored in real_indices) to check if it is in topk
+                    ifzero = (out == real_indices[i].to(device).view(-1,1))
+                    hits += ifzero.sum()
+                    ndcg += (log_2 / (torch.nonzero(ifzero)[:,1].view(-1).to(torch.float)+2).log_()).sum()
+                #
+                if i == int(opt.num_iter / 2):
+                    import pathlib
+                    timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
+                    if not os.path.exists(timeline_dir):
+                        os.makedirs(timeline_dir)
+                    timeline_file = timeline_dir + 'timeline-' + str(torch.backends.quantized.engine) + '-' + \
+                                "ncf" + str(i) + '-' + str(os.getpid()) + '.json'
+                    print(timeline_file)
+                    prof.export_chrome_trace(timeline_file)
+                    table_res = prof.key_averages().table(sort_by="cpu_time_total")
+                    print(table_res)
+                    # self.save_profile_result(timeline_dir + torch.backends.quantized.engine + "_result_average.xlsx", table_res)
+            else:
+                res = model(u.to(device).view(-1), n.to(device).view(-1)).detach().view(-1,samples_per_user)
+                # set duplicate results for the same item to -1 before topk
+                res[dup_mask[i]] = -1
+                out = torch.topk(res,K)[1]
+                # topk in pytorch is stable(if not sort)
+                # key(item):value(predicetion) pairs are ordered as original key(item) order
+                # so we need the first position of real item(stored in real_indices) to check if it is in topk
+                ifzero = (out == real_indices[i].to(device).view(-1,1))
+                hits += ifzero.sum()
+                ndcg += (log_2 / (torch.nonzero(ifzero)[:,1].view(-1).to(torch.float)+2).log_()).sum()
+            toc = time.time()
+            print("Iteration: {}, inference time: {} sec.".format(i, toc - start), flush=True)
+            if i >= opt.warmup_iter:
+                total_sample += batch_size
+                total_time += toc - start
+                batch_time_list.append((toc - start)*1000)
 
     mlperf_log.ncf_print(key=mlperf_log.EVAL_SIZE, value={"epoch": epoch, "value": num_user * samples_per_user})
     mlperf_log.ncf_print(key=mlperf_log.EVAL_HP_NUM_USERS, value=num_user)
     mlperf_log.ncf_print(key=mlperf_log.EVAL_HP_NUM_NEG, value=samples_per_user - 1)
 
     end = datetime.now()
+    print("\n", "-"*20, "Summary", "-"*20)
+    latency = total_time / total_sample * 1000
+    throughput = total_sample / total_time
+    print("batch_size:\t {}".format(batch_size))
+    print("inference latency:\t {:.3f} ms".format(latency))
+    print("inference Throughput:\t {:.2f} samples/s".format(throughput))
+    # P50
+    batch_time_list.sort()
+    p50_latency = batch_time_list[int(len(batch_time_list) * 0.50) - 1]
+    p90_latency = batch_time_list[int(len(batch_time_list) * 0.90) - 1]
+    p99_latency = batch_time_list[int(len(batch_time_list) * 0.99) - 1]
+    print('Latency P50:\t %.3f ms\nLatency P90:\t %.3f ms\nLatency P99:\t %.3f ms\n'\
+            % (p50_latency, p90_latency, p99_latency))
 
     hits = hits.item()
     ndcg = ndcg.item()
@@ -121,6 +208,7 @@ def val_epoch(model, x, y, dup_mask, real_indices, K, samples_per_user, num_user
 def main():
 
     args = parse_args()
+    print(args)
     if args.seed is not None:
         print("Using seed = {}".format(args.seed))
         torch.manual_seed(args.seed)
@@ -133,7 +221,7 @@ def main():
     run_dir = "./run/neumf/{}".format(config['timestamp'])
     print("Saving config and results to {}".format(run_dir))
     if not os.path.exists(run_dir) and run_dir != '':
-        os.makedirs(run_dir)
+        os.makedirs(run_dir, exist_ok=True)
     utils.save_config(config, run_dir)
 
     # Check that GPUs are actually available
@@ -141,8 +229,10 @@ def main():
     # Check where to put data loader
     if use_cuda:
         dataloader_device = 'cpu' if args.cpu_dataloader else 'cuda'
+        device = 'cuda'
     else:
         dataloader_device = 'cpu'
+        device = 'cpu'
 
     # more like load trigger timmer now
     mlperf_log.ncf_print(key=mlperf_log.PREPROC_HP_NUM_EVAL, value=args.valid_negative)
@@ -151,8 +241,9 @@ def main():
     mlperf_log.ncf_print(key=mlperf_log.INPUT_HP_SAMPLE_TRAIN_REPLACEMENT, value=True)
     mlperf_log.ncf_print(key=mlperf_log.INPUT_STEP_EVAL_NEG_GEN)
 
-    # sync worker before timing.
-    torch.cuda.synchronize()
+    if use_cuda:
+        # sync worker before timing.
+        torch.cuda.synchronize()
 
     #===========================================================================
     #== The clock starts on loading the preprocessed data. =====================
@@ -250,7 +341,8 @@ def main():
     real_indices = torch.cat(real_indices)
 
     # make pytorch memory behavior more consistent later
-    torch.cuda.empty_cache()
+    if use_cuda:
+        torch.cuda.empty_cache()
 
     mlperf_log.ncf_print(key=mlperf_log.INPUT_BATCH_SIZE, value=args.batch_size)
     mlperf_log.ncf_print(key=mlperf_log.INPUT_ORDER)  # we shuffled later with randperm
@@ -285,8 +377,27 @@ def main():
 
     if use_cuda:
         # Move model and loss to GPU
-        model = model.cuda()
+        # model = model.cuda()
         criterion = criterion.cuda()
+
+    if args.channels_last:
+        oob_model = model
+        try:
+            oob_model = oob_model.to(memory_format=torch.channels_last)
+            print("---- Use channels last format.")
+        except:
+            print("---- Use normal model.")
+        model = oob_model
+    else:
+        model.to(device)
+
+    if args.ipex:
+        model.eval()
+        import intel_extension_for_pytorch as ipex
+        if args.precision == "bfloat16":
+            model = ipex.optimize(model, dtype=torch.bfloat16, inplace=True)
+        else:
+            model = ipex.optimize(model, dtype=torch.float32, inplace=True)
 
     local_batch = args.batch_size
     traced_criterion = torch.jit.trace(criterion.forward, (torch.rand(local_batch,1),torch.rand(local_batch,1)))
@@ -303,10 +414,30 @@ def main():
     dup_mask = dup_mask.split(users_per_valid_batch)
     real_indices = real_indices.split(users_per_valid_batch)
 
-    hr, ndcg = val_epoch(model, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
-                         num_user=nb_users)
+    if args.jit:
+        jit_inputs = (test_users[0].to(device).view(-1), test_items[0].to(device).view(-1))
+        with torch.no_grad():
+            model = torch.jit.trace(model, jit_inputs)
+        if args.ipex:
+            model = torch.jit.freeze(model)
+        # warmup
+        for i in range(10):
+            model(jit_inputs[0], jit_inputs[1])
+        print("---- With JIT enabled.")
+
+    if args.precision == "bfloat16":
+        with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+            hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
+                                 num_user=nb_users, device=device)  
+    else:
+        hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
+                             num_user=nb_users, device=device)  
+    
     print('Initial HR@{K} = {hit_rate:.4f}, NDCG@{K} = {ndcg:.4f}'
           .format(K=args.topk, hit_rate=hr, ndcg=ndcg))
+    if args.evaluate:
+        return
+
     success = False
     mlperf_log.ncf_print(key=mlperf_log.TRAIN_LOOP)
     for epoch in range(args.epochs):
@@ -385,7 +516,12 @@ def main():
 
         mlperf_log.ncf_print(key=mlperf_log.EVAL_START, value=epoch)
 
-        hr, ndcg = val_epoch(model, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
+        if args.precision == "bfloat16":
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
+                                 num_user=nb_users, output=valid_results_file, epoch=epoch, loss=loss.data.item())
+        else:
+            hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
                              num_user=nb_users, output=valid_results_file, epoch=epoch, loss=loss.data.item())
 
         val_time = time.time() - begin
