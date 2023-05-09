@@ -121,7 +121,7 @@ class ResNet(nn.Module):
             self.stages.append(name)
             self.return_features[name] = stage_spec.return_features
 
-        # Optionally freeze (requires_grad=False) parts of the backbone
+        # Optionally freeze (requires_grad=True) parts of the backbone
         self._freeze_backbone(cfg.MODEL.BACKBONE.FREEZE_CONV_BODY_AT)
 
     def _freeze_backbone(self, freeze_at):

@@ -179,9 +179,9 @@ def main():
             inputs, targets, input_percentages, target_sizes = data
             # measure data loading time
             data_time.update(time.time() - end)
-            inputs = Variable(inputs, requires_grad=False)
-            target_sizes = Variable(target_sizes, requires_grad=False)
-            targets = Variable(targets, requires_grad=False)
+            inputs = Variable(inputs, requires_grad=True)
+            target_sizes = Variable(target_sizes, requires_grad=True)
+            targets = Variable(targets, requires_grad=True)
 
             if params.cuda:
                 inputs = inputs.cuda()
@@ -190,7 +190,7 @@ def main():
             out = out.transpose(0, 1)  # TxNxH
 
             seq_length = out.size(0)
-            sizes = Variable(input_percentages.mul_(int(seq_length)).int(), requires_grad=False)
+            sizes = Variable(input_percentages.mul_(int(seq_length)).int(), requires_grad=True)
 
             ctc_start_time = time.time()
             loss = criterion(out, targets, sizes, target_sizes)
