@@ -256,8 +256,8 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
     latency = batch_time.avg / 1 * 1000
     throughput = 1 / batch_time.avg
     print("\n", "-"*20, "Summary", "-"*20)
-    print("Latency:\t {:.3f} ms".format(latency))
-    print("Throughput:\t {:.2f} samples/s".format(throughput))
+    print("inference latency:\t {:.3f} ms".format(latency))
+    print("inference Throughput:\t {:.2f} samples/s".format(throughput))
     # P50
     batch_time_list.sort()
     p50_latency = batch_time_list[int(len(batch_time_list) * 0.50) - 1]
