@@ -428,7 +428,12 @@ def main():
     if args.precision == "bfloat16":
         with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
             hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
-                                 num_user=nb_users, device=device)  
+                               num_user=nb_users, device=device)  
+    elif args.precision == "float16":
+        print('---- Enable AMP float16')
+        with torch.cuda.amp.autocast(enabled=True, dtype=torch.half):
+            hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
+                               num_user=nb_users, device=device) 
     else:
         hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
                              num_user=nb_users, device=device)  
@@ -518,6 +523,11 @@ def main():
 
         if args.precision == "bfloat16":
             with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
+                                 num_user=nb_users, output=valid_results_file, epoch=epoch, loss=loss.data.item())
+        elif args.precision == "float16":
+            print('---- Enable AMP float16')
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
                 hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
                                  num_user=nb_users, output=valid_results_file, epoch=epoch, loss=loss.data.item())
         else:

@@ -193,6 +193,9 @@ def main():
         if args.precision == "bfloat16":
             with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
                 wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
+        elif args.precision == "float16":
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+                wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
         else:
             wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
         # print('inference Throughput: %0.3f samples/s' % (params.batch_size / batch_time.avg))
