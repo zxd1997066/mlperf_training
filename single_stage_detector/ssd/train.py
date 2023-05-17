@@ -374,6 +374,9 @@ def train300_mlperf_coco(args):
     if args.precision == "bfloat16":
         # with torch.amp.autocast(enabled=True, configure=torch.bfloat16, torch.no_grad(): 
         print("Running with bfloat16...")
+    elif args.precision == "float16":
+        # with torch.amp.autocast(enabled=True, configure=torch.bfloat16, torch.no_grad(): 
+        print("Running with float16...")
 
     ssd300 = SSD300(train_coco.labelnum)
     if args.checkpoint is not None:
@@ -531,6 +534,9 @@ def main():
     ssd_print(key=mlperf_log.RUN_START)
     if args.precision == "bfloat16":
         with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+            success = train300_mlperf_coco(args)
+    elif args.precision == "float16":
+        with torch.cuda.amp.autocast(enabled=True, dtype=torch.half):
             success = train300_mlperf_coco(args)
     else:
         success = train300_mlperf_coco(args)
