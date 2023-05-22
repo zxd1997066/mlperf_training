@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.optim
 import torch.utils.data
-from apex.parallel import DistributedDataParallel as DDP
+#from apex.parallel import DistributedDataParallel as DDP
 from mlperf_compliance import mlperf_log
 
 from seq2seq.train.fp_optimizers import Fp16Optimizer
@@ -42,6 +42,7 @@ class Seq2SeqTrainer:
                  intra_epoch_eval=0,
                  iter_size=1,
                  translator=None,
+                 args=None,
                  verbose=False):
         """
         Constructor for the Seq2SeqTrainer.
@@ -90,6 +91,7 @@ class Seq2SeqTrainer:
         self.translator = translator
         self.intra_epoch_eval = intra_epoch_eval
         self.iter_size = iter_size
+        self.args = args
 
         if cuda:
             self.model = self.model.cuda()
@@ -197,9 +199,12 @@ class Seq2SeqTrainer:
         tgt_tok_time = AverageMeter()
 
         batch_size = data_loader.batch_size
+        total_sample = 0
+        total_time = 0.0
 
         end = time.time()
         for i, (src, tgt) in enumerate(data_loader):
+            if self.args.num_iter > 0 and i >= self.args.num_iter: break
             self.save_counter += 1
             # measure data loading time
             data_time.update(time.time() - end)
@@ -209,6 +214,7 @@ class Seq2SeqTrainer:
                 update = True
 
             # do a train/evaluate iteration
+            elapsed = time.time()
             stats = self.iterate(src, tgt, update, training=training)
             loss_per_token, loss_per_sentence, num_toks = stats
 
@@ -217,13 +223,20 @@ class Seq2SeqTrainer:
             losses_per_sentence.update(loss_per_sentence, batch_size)
 
             # measure elapsed time
-            elapsed = time.time() - end
+            if torch.cuda.is_available(): torch.cuda.synchronize()
+            elapsed = time.time() - elapsed
+            if self.args.profile:
+                self.args.p.step()
             batch_time.update(elapsed)
             src_tok_time.update(num_toks['src'] / elapsed)
             tgt_tok_time.update(num_toks['tgt'] / elapsed)
             tot_num_toks = num_toks['tgt'] + num_toks['src']
             tot_tok_time.update(tot_num_toks / elapsed)
             self.loss = losses_per_token.avg
+            print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
+            if i >= self.args.num_warmup:
+                total_time += elapsed
+                total_sample += tot_num_toks
 
             if training and i in eval_iters:
                 test_bleu, _ = self.translator.run(calc_bleu=True,
@@ -269,6 +282,12 @@ class Seq2SeqTrainer:
 
             end = time.time()
 
+        print("\n", "-"*20, "Summary", "-"*20)
+        latency = total_time / total_sample * 1000
+        throughput = total_sample / total_time
+        print("inference Latency: {:.3f} ms".format(latency))
+        print("inference Throughput: {} Toks/s".format(throughput))
+        
         tot_tok_time.reduce('sum')
         losses_per_token.reduce('mean')
 
@@ -316,6 +335,7 @@ class Seq2SeqTrainer:
         torch.cuda.empty_cache()
         return output
 
+    @torch.no_grad()
     def evaluate(self, data_loader):
         """
         Sets model in eval mode, disables gradients, preallocates memory and
@@ -325,9 +345,41 @@ class Seq2SeqTrainer:
         """
         torch.set_grad_enabled(False)
         self.model.eval()
+        # NHWC
+        if self.args.channels_last:
+            self.model = self.model.to(memory_format=torch.channels_last)
+            print("---- Use NHWC model")
         torch.cuda.empty_cache()
         self.preallocate(data_loader, training=False)
         output = self.feed_data(data_loader, training=False)
+        if self.args.profile:
+            def trace_handler(p):
+                output = p.key_averages().table(sort_by="self_cpu_time_total")
+                print(output)
+                import pathlib
+                timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
+                if not os.path.exists(timeline_dir):
+                    try:
+                        os.makedirs(timeline_dir)
+                    except:
+                        pass
+                timeline_file = timeline_dir + 'timeline-' + str(torch.backends.quantized.engine) + '-' + \
+                            'GNMT-' + str(p.step_num) + '-' + str(os.getpid()) + '.json'
+                p.export_chrome_trace(timeline_file)
+            with torch.profiler.profile(
+                activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                record_shapes=True,
+                schedule=torch.profiler.schedule(
+                    wait=int(self.args.num_iter/2),
+                    warmup=2,
+                    active=1,
+                ),
+                on_trace_ready=trace_handler,
+            ) as p:
+                self.args.p = p
+                output = self.feed_data(data_loader, training=False)
+        else:
+            output = self.feed_data(data_loader, training=False)
         self.model.zero_grad()
         torch.cuda.empty_cache()
         return output

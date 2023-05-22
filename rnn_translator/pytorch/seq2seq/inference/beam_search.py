@@ -254,12 +254,12 @@ class SequenceGenerator:
             offset = global_offset[:source_beam.shape[0]]
             source_beam += offset.unsqueeze(1)
 
-            translation[active, :] = translation[active[source_beam.view(-1)], :]
+            translation[active, :] = translation[active[source_beam.view(-1).long()], :]
             translation[active, idx] = words.view(-1)
 
-            lengths[active] = lengths[active[source_beam.view(-1)]]
+            lengths[active] = lengths[active[source_beam.view(-1).long()]]
 
-            context[2] = context[2].index_select(1, source_beam.view(-1))
+            context[2] = context[2].index_select(1, source_beam.view(-1).init())
 
             if terminating.any():
                 not_terminating = ~terminating
