@@ -76,7 +76,7 @@ function generate_core {
         printf " ${OOB_EXEC_HEADER} \
             python rnn_translator/pytorch/train.py --dataset-dir ${DATASET_DIR} --epochs 1 --eval \
                 --val-batch-size $batch_size --test-batch-size $batch_size \
-                --num_iter $num_iter --num_warmup $num_warmup \
+                --num_iter 20 --num_warmup $num_warmup \
                 --precision $precision \
                 --channels_last $channels_last \
                 ${addtion_options} \
@@ -103,7 +103,7 @@ function generate_core_launcher {
                     --ncore_per_instance ${real_cores_per_instance} \
             rnn_translator/pytorch/train.py --dataset-dir ${DATASET_DIR} --epochs 1 --eval \
                 --val-batch-size $batch_size --test-batch-size $batch_size \
-                --num_iter $num_iter --num_warmup $num_warmup \
+                --num_iter 20 --num_warmup $num_warmup \
                 --precision $precision \
                 --channels_last $channels_last \
                 ${addtion_options} \
