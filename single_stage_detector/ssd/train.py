@@ -536,7 +536,7 @@ def main():
         with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
             success = train300_mlperf_coco(args)
     elif args.precision == "float16":
-        with torch.cuda.amp.autocast(enabled=True, dtype=torch.half):
+        with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
             success = train300_mlperf_coco(args)
     else:
         success = train300_mlperf_coco(args)
