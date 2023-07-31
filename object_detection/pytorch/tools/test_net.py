@@ -1,16 +1,3 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Set up custom environment before nearly anything else is imported
 # NOTE: this should be the first import (no not reorder)
@@ -46,7 +33,17 @@ def main():
         default=None,
         nargs=argparse.REMAINDER,
     )
-
+    # for oob
+    parser.add_argument('--device', type=str, default='cpu', help='device')
+    parser.add_argument('--precision', type=str, default='float32', help='precision')
+    parser.add_argument('--channels_last', type=int, default=1, help='use channels last format')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch_size')
+    parser.add_argument('--num_iter', type=int, default=-1, help='num_iter')
+    parser.add_argument('--num_warmup', type=int, default=-1, help='num_warmup')
+    parser.add_argument('--profile', dest='profile', action='store_true', help='profile')
+    parser.add_argument('--quantized_engine', type=str, default=None, help='quantized_engine')
+    parser.add_argument('--ipex', dest='ipex', action='store_true', help='ipex')
+    parser.add_argument('--jit', dest='jit', action='store_true', help='jit')
     args = parser.parse_args()
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -61,6 +58,13 @@ def main():
 
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
+    # for oob
+    cfg.PER_EPOCH_EVAL = True
+    cfg.MODEL.DEVICE = args.device
+    cfg.DATALOADER.NUM_WORKERS = 0
+    cfg.TEST.IMS_PER_BATCH = args.batch_size
+    cfg.SOLVER.IMS_PER_BATCH = args.batch_size
+    cfg.SOLVER.MAX_ITER = args.num_iter
     cfg.freeze()
 
     save_dir = ""
@@ -73,6 +77,10 @@ def main():
 
     model = build_detection_model(cfg)
     model.to(cfg.MODEL.DEVICE)
+    # NHWC
+    if args.channels_last:
+        model = model.to(memory_format=torch.channels_last)
+        print("---- Use NHWC model")
 
     output_dir = cfg.OUTPUT_DIR
     checkpointer = DetectronCheckpointer(cfg, model, save_dir=output_dir)
@@ -92,17 +100,49 @@ def main():
             output_folders[idx] = output_folder
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
-        inference(
-            model,
-            data_loader_val,
-            dataset_name=dataset_name,
-            iou_types=iou_types,
-            box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
-            device=cfg.MODEL.DEVICE,
-            expected_results=cfg.TEST.EXPECTED_RESULTS,
-            expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-            output_folder=output_folder,
-        )
+        if args.precision == "bfloat16":
+            print('---- Enable AMP bfloat16')
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+                inference(
+                    model,
+                    data_loader_val,
+                    dataset_name=dataset_name,
+                    iou_types=iou_types,
+                    box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
+                    device=cfg.MODEL.DEVICE,
+                    expected_results=cfg.TEST.EXPECTED_RESULTS,
+                    expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+                    output_folder=output_folder,
+                    args=args,
+                )
+        elif args.precision == "float16":
+            print('---- Enable AMP float16')
+            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+                inference(
+                    model,
+                    data_loader_val,
+                    dataset_name=dataset_name,
+                    iou_types=iou_types,
+                    box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
+                    device=cfg.MODEL.DEVICE,
+                    expected_results=cfg.TEST.EXPECTED_RESULTS,
+                    expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+                    output_folder=output_folder,
+                    args=args,
+                )
+        else:
+            inference(
+                model,
+                data_loader_val,
+                dataset_name=dataset_name,
+                iou_types=iou_types,
+                box_only=False if cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
+                device=cfg.MODEL.DEVICE,
+                expected_results=cfg.TEST.EXPECTED_RESULTS,
+                expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+                output_folder=output_folder,
+                args=args,
+            )
         synchronize()
 
 

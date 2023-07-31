@@ -21,6 +21,13 @@ cd training/object_detection/
 nvidia-docker build . -t mlperf/object_detection
 ```
 
+4. Run docker container and install code
+```
+nvidia-docker run -v .:/workspace -t -i --rm --ipc=host mlperf/object_detection \
+    "cd mlperf/training/object_detection && ./install.sh"
+```
+Now exit the docker container (Ctrl-D) to get back to your host.
+
 ### Steps to download data
 ```
 # From training/object_detection/
@@ -54,13 +61,13 @@ Any order.
 He, Kaiming, et al. "Mask r-cnn." Computer Vision (ICCV), 2017 IEEE International Conference on.
 IEEE, 2017.
 
-We use a version of Mask R-CNN with a ResNet-50 backbone.
+We use a version of Mask R-CNN with a ResNet50 backbone.
 
 ### List of layers
 Running the timing script will display a list of layers.
 
 ### Weight and bias initialization
-The ResNet-50 base must be loaded from the provided weights. They may be quantized.
+The ResNet50 base must be loaded from the provided weights. They may be quantized.
 
 ### Loss function
 Multi-task loss (classification, box, mask). Described in the Mask R-CNN paper.

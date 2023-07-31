@@ -1,16 +1,3 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import torch
 from torch import nn
@@ -30,7 +17,7 @@ class _ROIAlign(Function):
         ctx.sampling_ratio = sampling_ratio
         ctx.input_shape = input.size()
         output = _C.roi_align_forward(
-            input, roi, spatial_scale, output_size[0], output_size[1], sampling_ratio
+            input.float(), roi.float(), spatial_scale, output_size[0], output_size[1], sampling_ratio
         )
         return output
 
@@ -68,9 +55,14 @@ class ROIAlign(nn.Module):
         self.sampling_ratio = sampling_ratio
 
     def forward(self, input, rois):
-        return roi_align(
-            input, rois, self.output_size, self.spatial_scale, self.sampling_ratio
-        )
+        if 0: # input.device == torch.device("dpcpp"):
+            return roi_align(
+                input.to("cpu").float(), rois.float(), self.output_size, self.spatial_scale, self.sampling_ratio
+            ).to("dpcpp")
+        else:
+            return roi_align(
+                input.float(), rois.float(), self.output_size, self.spatial_scale, self.sampling_ratio
+            )
 
     def __repr__(self):
         tmpstr = self.__class__.__name__ + "("

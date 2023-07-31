@@ -1,16 +1,3 @@
-# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import datetime
 import logging
@@ -26,19 +13,37 @@ from ..utils.comm import all_gather
 from ..utils.comm import synchronize
 
 
-def compute_on_dataset(model, data_loader, device):
+def compute_on_dataset(model, data_loader, device, args=None):
     model.eval()
     results_dict = {}
     cpu_device = torch.device("cpu")
+    total_time = 0.0
+    total_sample = 0
+    print(args)
     for i, batch in enumerate(tqdm(data_loader)):
         images, targets, image_ids = batch
+        elapsed = time.time()
         images = images.to(device)
         with torch.no_grad():
             output = model(images)
             output = [o.to(cpu_device) for o in output]
+        if torch.cuda.is_available(): torch.cuda.synchronize()
+        elapsed = time.time() - elapsed
+        if args.profile:
+            args.p.step()
+        print("Iteration: {}, inference time: {} sec.".format(i, elapsed), flush=True)
+        if i >= args.num_warmup:
+            total_time += elapsed
+            total_sample += args.batch_size
+
         results_dict.update(
             {img_id: result for img_id, result in zip(image_ids, output)}
         )
+    throughput = total_sample / total_time
+    latency = total_time / total_sample * 1000
+    print('inference latency: %.3f ms' % latency)
+    print('inference Throughput: %f images/s' % throughput)
+
     return results_dict
 
 
@@ -74,6 +79,7 @@ def inference(
         expected_results=(),
         expected_results_sigma_tol=4,
         output_folder=None,
+        args=None,
 ):
     # convert to a torch.device for efficiency
     device = torch.device(device)
@@ -86,7 +92,35 @@ def inference(
     dataset = data_loader.dataset
     logger.info("Start evaluation on {} dataset({} images).".format(dataset_name, len(dataset)))
     start_time = time.time()
-    predictions = compute_on_dataset(model, data_loader, device)
+    def trace_handler(p):
+        output = p.key_averages().table(sort_by="self_cpu_time_total")
+        print(output)
+        import pathlib
+        timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
+        if not os.path.exists(timeline_dir):
+            try:
+                os.makedirs(timeline_dir)
+            except:
+                pass
+        timeline_file = timeline_dir + 'timeline-' + str(torch.backends.quantized.engine) + '-' + \
+                    'maskrcnn-' + str(p.step_num) + '-' + str(os.getpid()) + '.json'
+        p.export_chrome_trace(timeline_file)
+
+    if args.profile:
+        with torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+            record_shapes=True,
+            schedule=torch.profiler.schedule(
+                wait=int(args.num_iter/2),
+                warmup=2,
+                active=1,
+            ),
+            on_trace_ready=trace_handler,
+        ) as p:
+            args.p = p
+            predictions = compute_on_dataset(model, data_loader, device, args=args)
+    else:
+        predictions = compute_on_dataset(model, data_loader, device, args=args)
     # wait for all processes to complete before measuring the time
     synchronize()
     total_time = time.time() - start_time
@@ -96,7 +130,7 @@ def inference(
             total_time_str, total_time * num_devices / len(dataset), num_devices
         )
     )
-
+    exit(0)
     predictions = _accumulate_predictions_from_multiple_gpus(predictions)
     if not is_main_process():
         return
