@@ -21,9 +21,9 @@ function main {
     fi
 
     pip install -r ${workload_dir}/requirements.txt
-    pip uninstall -y numba llvmlite
+    #pip uninstall -y numba llvmlite
     conda install -c numba llvmdev -y
-    pip install git+https://github.com/numba/llvmlite.git
+    #pip install git+https://github.com/numba/llvmlite.git
     pip install -U numba
 
     if [ ! -d warp-ctc ];then
