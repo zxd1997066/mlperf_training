@@ -33,6 +33,9 @@ function main {
         cd build
         cmake .. && make
         cd ../pytorch_binding
+        sed -i "s/c++14/c++17/" setup.py
+        sed -i "s/c++11/c++17/" setup.py
+        python setup.py clean
         python setup.py install
         cd ../..
     fi
