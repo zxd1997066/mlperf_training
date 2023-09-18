@@ -25,6 +25,7 @@ function main {
     conda install -c numba llvmdev -y
     #pip install git+https://github.com/numba/llvmlite.git
     pip install -U numba
+    pip install torchaudio --no-deps
 
     if [ ! -d warp-ctc ];then
         git clone https://github.com/SeanNaren/warp-ctc.git
