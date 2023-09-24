@@ -26,19 +26,19 @@ function main {
     #pip install git+https://github.com/numba/llvmlite.git
     pip install -U numba
 
-    if [ ! -d warp-ctc ];then
-        git clone https://github.com/SeanNaren/warp-ctc.git
-        cd warp-ctc
-        mkdir -p build
-        cd build
-        cmake .. && make
-        cd ../pytorch_binding
-        sed -i "s/c++14/c++17/" setup.py
-        sed -i "s/c++11/c++17/" setup.py
-        python setup.py clean
-        python setup.py install
-        cd ../..
-    fi
+    # if [ ! -d warp-ctc ];then
+    #     git clone https://github.com/SeanNaren/warp-ctc.git
+    #     cd warp-ctc
+    #     mkdir -p build
+    #     cd build
+    #     cmake .. && make
+    #     cd ../pytorch_binding
+    #     sed -i "s/c++14/c++17/" setup.py
+    #     sed -i "s/c++11/c++17/" setup.py
+    #     python setup.py clean
+    #     python setup.py install
+    #     cd ../..
+    # fi
     cd 	speech_recognition/
     rsync -avz ${workload_dir}/*.csv .
     cd pytorch/
