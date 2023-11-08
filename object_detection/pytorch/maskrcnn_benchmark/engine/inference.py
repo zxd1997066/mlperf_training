@@ -15,6 +15,8 @@ from ..utils.comm import synchronize
 
 def compute_on_dataset(model, data_loader, device, args=None):
     model.eval()
+    if args.compile:
+        model = torch.compile(model, backend=args.backend, options={"freezing": True})
     results_dict = {}
     cpu_device = torch.device("cpu")
     total_time = 0.0
