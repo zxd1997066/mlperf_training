@@ -15,8 +15,6 @@ from ..utils.comm import synchronize
 
 def compute_on_dataset(model, data_loader, device, args=None):
     model.eval()
-    if args.compile:
-        model = torch.compile(model, backend=args.backend, options={"freezing": True})
     results_dict = {}
     cpu_device = torch.device("cpu")
     total_time = 0.0
@@ -94,6 +92,8 @@ def inference(
     dataset = data_loader.dataset
     logger.info("Start evaluation on {} dataset({} images).".format(dataset_name, len(dataset)))
     start_time = time.time()
+    if args.compile:
+        model = torch.compile(model, backend=args.backend, options={"freezing": True})
     def trace_handler(p):
         output = p.key_averages().table(sort_by="self_cpu_time_total")
         print(output)
