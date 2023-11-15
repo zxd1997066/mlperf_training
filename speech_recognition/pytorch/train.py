@@ -62,6 +62,10 @@ parser.add_argument('--channels_last', type=int, default=1,
                     help='use the channels last')
 parser.add_argument('--profile', action='store_true', default=False,
                     help='')
+parser.add_argument("--compile", action='store_true', default=False,
+                    help="enable torch.compile")
+parser.add_argument("--backend", type=str, default='inductor',
+                    help="enable torch.compile backend")
 
 
 
@@ -180,6 +184,8 @@ def main():
                 print("[INFO] Running IPEX float32 path")
         else:
             model.to(device)
+        if args.compile:
+            model = torch.compile(model, backend=args.backend, options={"freezing": True})
         if args.jit:
             jit_inputs = torch.randn(args.batch_size, 1, 161, 1)
             with torch.no_grad():
