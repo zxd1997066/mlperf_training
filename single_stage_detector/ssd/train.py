@@ -28,6 +28,10 @@ def parse_args():
                         help='manually set random seed for torch')
     parser.add_argument('--threshold', '-t', type=float, default=0.23,
                         help='stop training early at threshold')
+    parser.add_argument("--compile", action='store_true', default=False,
+                    help="enable torch.compile")
+    parser.add_argument("--backend", type=str, default='inductor',
+                    help="enable torch.compile backend")
     parser.add_argument('--iteration', type=int, default=0,
                         help='iteration to start from')
     parser.add_argument('--checkpoint', type=str, default=None,
@@ -188,6 +192,8 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
 
     batch_time_list = []
     start = time.time()
+    if args.compile:
+        model = torch.compile(model, backend=args.backend, options={"freezing": True})
     for idx, image_id in enumerate(coco.img_keys):
         if args.perf_run_iters != 0 and idx >= args.perf_run_iters:
             break
