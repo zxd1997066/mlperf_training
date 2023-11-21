@@ -80,6 +80,10 @@ def parse_args():
                         help='precision, float32, int8, bfloat16')
     parser.add_argument('--channels_last', type=int, default=1, help='use channels last format')
     parser.add_argument('--profile', action='store_true', help='Trigger profile on current topology.')
+    parser.add_argument("--compile", action='store_true', default=False,
+                    help="enable torch.compile")
+    parser.add_argument("--backend", type=str, default='inductor',
+                    help="enable torch.compile backend")
     return parser.parse_args()
 
 
@@ -398,6 +402,9 @@ def main():
             model = ipex.optimize(model, dtype=torch.bfloat16, inplace=True)
         else:
             model = ipex.optimize(model, dtype=torch.float32, inplace=True)
+
+    if args.compile:
+        model = torch.compile(model, backend=args.backend, options={"freezing": True})
 
     local_batch = args.batch_size
     traced_criterion = torch.jit.trace(criterion.forward, (torch.rand(local_batch,1),torch.rand(local_batch,1)))
