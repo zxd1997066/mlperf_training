@@ -180,6 +180,10 @@ def parse_args():
     val.add_argument('--profile', action='store_true', default=False, help='collect timeline')
     val.add_argument('--num_iter', default=0, type=int, help='test iterations')
     val.add_argument('--num_warmup', default=0, type=int, help='test warmup')
+    val.add_argument("--compile", action='store_true', default=False,
+                    help="enable torch.compile")
+    val.add_argument("--backend", type=str, default='inductor',
+                    help="enable torch.compile backend")
 
     # test
     test = parser.add_argument_group('test setup')
