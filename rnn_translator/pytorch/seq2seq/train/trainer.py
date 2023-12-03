@@ -349,6 +349,8 @@ class Seq2SeqTrainer:
         if self.args.channels_last:
             self.model = self.model.to(memory_format=torch.channels_last)
             print("---- Use NHWC model")
+        if self.args.compile:
+            self.model = torch.compile(model, backend=self.args.backend, options={"freezing": True})
         torch.cuda.empty_cache()
         self.preallocate(data_loader, training=False)
         output = self.feed_data(data_loader, training=False)
