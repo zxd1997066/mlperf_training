@@ -106,7 +106,7 @@ def main():
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
         if args.precision == "bfloat16":
             print('---- Enable AMP bfloat16')
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.bfloat16):
                 inference(
                     model,
                     data_loader_val,
@@ -121,7 +121,7 @@ def main():
                 )
         elif args.precision == "float16":
             print('---- Enable AMP float16')
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.half):
                 inference(
                     model,
                     data_loader_val,
