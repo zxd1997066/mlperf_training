@@ -433,7 +433,7 @@ def main():
         print("---- With JIT enabled.")
 
     if args.precision == "bfloat16":
-        with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+        with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.bfloat16):
             hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
                                num_user=nb_users, device=device)  
     elif args.precision == "float16":
@@ -529,12 +529,12 @@ def main():
         mlperf_log.ncf_print(key=mlperf_log.EVAL_START, value=epoch)
 
         if args.precision == "bfloat16":
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.bfloat16):
                 hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
                                  num_user=nb_users, output=valid_results_file, epoch=epoch, loss=loss.data.item())
         elif args.precision == "float16":
             print('---- Enable AMP float16')
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.half):
                 hr, ndcg = val_epoch(model, args, test_users, test_items, dup_mask, real_indices, args.topk, samples_per_user=samples_per_user,
                                  num_user=nb_users, output=valid_results_file, epoch=epoch, loss=loss.data.item())
         else:

@@ -197,10 +197,10 @@ def main():
                     model(jit_inputs)
         batch_time = AverageMeter()
         if args.precision == "bfloat16":
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.bfloat16):
                 wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
         elif args.precision == "float16":
-            with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+            with torch.autocast(device_type="cuda" if torch.cuda.is_available() else "cpu", enabled=True, dtype=torch.half):
                 wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
         else:
             wer, cer = eval_model(model, test_loader, decoder, args, device, batch_time)
