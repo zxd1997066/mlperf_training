@@ -22,7 +22,9 @@ function main {
 
     pip install -r ${workload_dir}/requirements.txt
     #pip uninstall -y numba llvmlite
-    conda install -c numba llvmdev -y
+    if [ "${device}" != "cuda" ];then
+        conda install -c numba llvmdev -y
+    fi
     #pip install git+https://github.com/numba/llvmlite.git
     pip install -U numba
     pip install numba==0.48
