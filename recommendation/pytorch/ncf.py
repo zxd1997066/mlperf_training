@@ -384,6 +384,7 @@ def main():
         # model = model.cuda()
         criterion = criterion.cuda()
 
+    model.to(device)
     if args.channels_last:
         oob_model = model
         try:
@@ -392,8 +393,6 @@ def main():
         except:
             print("---- Use normal model.")
         model = oob_model
-    else:
-        model.to(device)
 
     if args.ipex:
         model.eval()
