@@ -24,10 +24,11 @@ function main {
     #pip uninstall -y numba llvmlite
     if [ "${device}" != "cuda" ];then
         conda install -c numba llvmdev -y
+        pip install numba==0.48
+    else
+        pip install -U numba
     fi
     #pip install git+https://github.com/numba/llvmlite.git
-    pip install -U numba
-    pip install numba==0.48
 
     if [ ! -d warp-ctc ];then
         git clone https://github.com/SeanNaren/warp-ctc.git
