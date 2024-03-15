@@ -370,7 +370,7 @@ def train300_mlperf_coco(args):
                                   batch_size=args.batch_size,
                                   shuffle=(train_sampler is None),
                                   sampler=train_sampler,
-                                  num_workers=4)
+                                  num_workers=0)
     # set shuffle=True in DataLoader
     ssd_print(key=mlperf_log.INPUT_SHARD, value=None)
     ssd_print(key=mlperf_log.INPUT_ORDER)
