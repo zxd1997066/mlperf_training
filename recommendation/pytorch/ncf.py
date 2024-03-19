@@ -158,7 +158,7 @@ def val_epoch(model, opt, x, y, dup_mask, real_indices, K, samples_per_user, num
             else:
                 res = model(u.to(device).view(-1), n.to(device).view(-1)).detach().view(-1,samples_per_user)
                 # set duplicate results for the same item to -1 before topk
-                res[dup_mask[i]] = -1
+                res[dup_mask[i].bool()] = -1
                 out = torch.topk(res,K)[1]
                 # topk in pytorch is stable(if not sort)
                 # key(item):value(predicetion) pairs are ordered as original key(item) order
