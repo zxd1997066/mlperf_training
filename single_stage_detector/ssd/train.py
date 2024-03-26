@@ -236,6 +236,8 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
                     # self.save_profile_result(timeline_dir + torch.backends.quantized.engine + "_result_average.xlsx", table_res)
             else:
                 ploc, plabel = model(inp)
+            if use_cuda:
+                torch.cuda.synchronize()
             end_time=time.time()
             print("Iteration: {}, inference time: {} sec.".format(idx, end_time - start_time), flush=True)
             if idx >= args.perf_prerun_warmup:
@@ -331,16 +333,16 @@ def train300_mlperf_coco(args):
         if args.no_cuda:
             device = torch.device('cpu')
         else:
-            torch.cuda.set_device(args.local_rank)
+            #torch.cuda.set_device(args.local_rank)
             device = torch.device('cuda')
-            dist.init_process_group(backend='nccl',
-                                    init_method='env://')
-            # set seeds properly
-            args.seed = broadcast_seeds(args.seed, device)
-            local_seed = (args.seed + dist.get_rank()) % 2**32
-            print(dist.get_rank(), "Using seed = {}".format(local_seed))
-            torch.manual_seed(local_seed)
-            np.random.seed(seed=local_seed)
+            #dist.init_process_group(backend='nccl',
+            #                        init_method='env://')
+            ## set seeds properly
+            #args.seed = broadcast_seeds(args.seed, device)
+            #local_seed = (args.seed + dist.get_rank()) % 2**32
+            #print(dist.get_rank(), "Using seed = {}".format(local_seed))
+            #torch.manual_seed(local_seed)
+            #np.random.seed(seed=local_seed)
 
 
     dboxes = dboxes300_coco()
@@ -542,7 +544,7 @@ def main():
         with torch.cpu.amp.autocast(enabled=True, dtype=torch.bfloat16):
             success = train300_mlperf_coco(args)
     elif args.precision == "float16":
-        with torch.cpu.amp.autocast(enabled=True, dtype=torch.half):
+        with torch.autocast(enabled=True, device_type="cuda" if torch.cuda.is_available() else "cpu", dtype=torch.half):
             success = train300_mlperf_coco(args)
     else:
         success = train300_mlperf_coco(args)
