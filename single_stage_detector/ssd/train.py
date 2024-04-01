@@ -317,13 +317,13 @@ def train300_mlperf_coco(args):
     # Check that GPUs are actually available
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     args.distributed = False
-    if use_cuda:
-        try:
-            from apex.parallel import DistributedDataParallel as DDP
-            if 'WORLD_SIZE' in os.environ:
-                args.distributed = int(os.environ['WORLD_SIZE']) > 1
-        except:
-            raise ImportError("Please install APEX from https://github.com/nvidia/apex")
+    #if use_cuda:
+    #    try:
+    #        from apex.parallel import DistributedDataParallel as DDP
+    #        if 'WORLD_SIZE' in os.environ:
+    #            args.distributed = int(os.environ['WORLD_SIZE']) > 1
+    #    except:
+    #        raise ImportError("Please install APEX from https://github.com/nvidia/apex")
 
     if args.distributed:
         # necessary pytorch imports
