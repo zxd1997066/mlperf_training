@@ -238,8 +238,8 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
                     # self.save_profile_result(timeline_dir + torch.backends.quantized.engine + "_result_average.xlsx", table_res)
             else:
                 start_time=time.time()
-		ploc, plabel = model(inp)
-		end_time=time.time()
+                ploc, plabel = model(inp)
+                end_time=time.time()
             if use_cuda:
                 torch.cuda.synchronize()
             # end_time=time.time()
