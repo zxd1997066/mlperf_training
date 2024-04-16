@@ -221,9 +221,9 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
             # ploc, plabel = model(inp)
             if args.profile:
                 with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU], record_shapes=True) as prof:
-			start_time=time.time()
-			ploc, plabel = model(inp)
-			end_time=time.time()
+                     start_time=time.time()
+                     ploc, plabel = model(inp)
+                     end_time=time.time()
                 if idx == int(args.perf_run_iters/2):
                     import pathlib
                     timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
