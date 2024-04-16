@@ -217,11 +217,13 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
                         print("---- Use script model.")
                     if args.ipex:
                         model = torch.jit.freeze(model)
-            start_time=time.time()
+            # start_time=time.time()
             # ploc, plabel = model(inp)
             if args.profile:
                 with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU], record_shapes=True) as prof:
-                    ploc, plabel = model(inp)
+			start_time=time.time()
+			ploc, plabel = model(inp)
+			end_time=time.time()
                 if idx == int(args.perf_run_iters/2):
                     import pathlib
                     timeline_dir = str(pathlib.Path.cwd()) + '/timeline/'
@@ -235,10 +237,12 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
                     print(table_res)
                     # self.save_profile_result(timeline_dir + torch.backends.quantized.engine + "_result_average.xlsx", table_res)
             else:
-                ploc, plabel = model(inp)
+                start_time=time.time()
+		ploc, plabel = model(inp)
+		end_time=time.time()
             if use_cuda:
                 torch.cuda.synchronize()
-            end_time=time.time()
+            # end_time=time.time()
             print("Iteration: {}, inference time: {} sec.".format(idx, end_time - start_time), flush=True)
             if idx >= args.perf_prerun_warmup:
                 batch_time.update(end_time - start_time)
