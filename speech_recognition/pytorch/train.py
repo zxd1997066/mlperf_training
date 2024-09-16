@@ -66,7 +66,8 @@ parser.add_argument("--compile", action='store_true', default=False,
                     help="enable torch.compile")
 parser.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
-
+parser.add_argument("--triton_cpu", action='store_true', default=False,
+                    help="enable triton_cpu")
 
 
 def to_np(x):
@@ -94,7 +95,10 @@ class AverageMeter(object):
 def main():
     args = parser.parse_args()
     params.batch_size = args.batch_size
-
+    if args.triton_cpu:
+        print("run with triton cpu backend")
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
     torch.manual_seed(args.seed)
     if args.cuda:
         torch.cuda.manual_seed_all(args.seed)
