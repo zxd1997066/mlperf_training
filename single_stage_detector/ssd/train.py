@@ -14,66 +14,70 @@ from mlperf_compliance import mlperf_log
 from mlperf_logger import ssd_print, broadcast_seeds
 
 def parse_args():
-    parser = ArgumentParser(description="Train Single Shot MultiBox Detector"
-                                        " on COCO")
-    parser.add_argument('--data', '-d', type=str, default='/coco',
-                        help='path to test and training data files')
-    parser.add_argument('--epochs', '-e', type=int, default=800,
-                        help='number of epochs for training')
-    parser.add_argument('--batch-size', '-b', type=int, default=32,
-                        help='number of examples for each iteration')
-    parser.add_argument('--no-cuda', action='store_true',
-                        help='use available GPUs')
-    parser.add_argument('--seed', '-s', type=int, default=random.SystemRandom().randint(0, 2**32 - 1),
-                        help='manually set random seed for torch')
-    parser.add_argument('--threshold', '-t', type=float, default=0.23,
-                        help='stop training early at threshold')
-    parser.add_argument("--compile", action='store_true', default=False,
-                    help="enable torch.compile")
-    parser.add_argument("--backend", type=str, default='inductor',
-                    help="enable torch.compile backend")
-    parser.add_argument('--iteration', type=int, default=0,
-                        help='iteration to start from')
-    parser.add_argument('--checkpoint', type=str, default=None,
-                        help='path to model checkpoint file')
-    parser.add_argument('--no-save', action='store_true',
-                        help='save model checkpoints')
-    parser.add_argument('--ipex', action='store_true', default=False,
-                        help='enable Intel_PyTorch_Extension')
-    parser.add_argument('--jit', action='store_true', default=False,
-                        help='enable JIT')
-    parser.add_argument('--precision', type=str, default='float32',
-                        help='data type precision, default is float32.')
-    parser.add_argument('--channels_last', type=int, default=1,
-                        help='use channels last format')
-    parser.add_argument('--arch', type=str, default="ssd300",
-                        help='model name')
-    parser.add_argument('--evaluation', nargs='*', type=int,
-                        default=[10, 20, 40, 50, 55, 60, 65, 70, 75, 80],
-                        help='epochs at which to evaluate')
-    parser.add_argument('--eval-only', action='store_true',
-                        help='do evaluation only')
-    parser.add_argument('--bench-mark', action='store_true', default=True,
-                        help='bench-mark only')
-    parser.add_argument('--lr-decay-schedule', nargs='*', type=int,
-                        default=[40, 50],
-                        help='epochs at which to decay the learning rate')
-    parser.add_argument('--warmup', type=float, default=None,
-                        help='how long the learning rate will be warmed up in fraction of epochs')
-    parser.add_argument('--warmup-factor', type=int, default=0,
-                        help='mlperf rule parameter for controlling warmup curve')
-    parser.add_argument('--perf-prerun-warmup', type=int, default=5,
-                        help='how much iterations to pre run before performance test, -1 mean use all dataset.')
-    parser.add_argument('--perf-run-iters', type=int, default=0,
-                        help='how much iterations to run performance test, 0 mean use all dataset.')
-    parser.add_argument('--lr', type=float, default=2.5e-3,
-                        help='base learning rate')
-    # Distributed stuff
-    parser.add_argument('--local_rank', default=0, type=int,
-                        help='Used for multi-process training. Can either be manually set ' +
-                        'or automatically set by using \'python -m multiproc\'.')
-    parser.add_argument('--profile', action='store_true', default=False)
-    return parser.parse_args()
+	parser = ArgumentParser(description="Train Single Shot MultiBox Detector"
+					" on COCO")
+	parser.add_argument("--triton_cpu", action='store_true', default=False,
+		    help="enable triton_cpu")
+	parser.add_argument('--data', '-d', type=str, default='/coco',
+			help='path to test and training data files')
+	parser.add_argument('--epochs', '-e', type=int, default=800,
+			help='number of epochs for training')
+	parser.add_argument('--batch-size', '-b', type=int, default=32,
+			help='number of examples for each iteration')
+	parser.add_argument('--no-cuda', action='store_true',
+			help='use available GPUs')
+	parser.add_argument('--seed', '-s', type=int, default=random.SystemRandom().randint(0, 2**32 - 1),
+			help='manually set random seed for torch')
+	parser.add_argument('--threshold', '-t', type=float, default=0.23,
+			help='stop training early at threshold')
+	parser.add_argument("--compile", action='store_true', default=False,
+		    help="enable torch.compile")
+	parser.add_argument("--backend", type=str, default='inductor',
+		    help="enable torch.compile backend")
+	parser.add_argument('--iteration', type=int, default=0,
+			help='iteration to start from')
+	parser.add_argument('--checkpoint', type=str, default=None,
+			help='path to model checkpoint file')
+	parser.add_argument('--no-save', action='store_true',
+			help='save model checkpoints')
+	parser.add_argument('--ipex', action='store_true', default=False,
+			help='enable Intel_PyTorch_Extension')
+	parser.add_argument('--jit', action='store_true', default=False,
+			help='enable JIT')
+	parser.add_argument('--precision', type=str, default='float32',
+			help='data type precision, default is float32.')
+	parser.add_argument('--channels_last', type=int, default=1,
+			help='use channels last format')
+	parser.add_argument('--arch', type=str, default="ssd300",
+			help='model name')
+	parser.add_argument('--evaluation', nargs='*', type=int,
+			default=[10, 20, 40, 50, 55, 60, 65, 70, 75, 80],
+			help='epochs at which to evaluate')
+	parser.add_argument('--eval-only', action='store_true',
+			help='do evaluation only')
+	parser.add_argument('--bench-mark', action='store_true', default=True,
+			help='bench-mark only')
+	parser.add_argument('--lr-decay-schedule', nargs='*', type=int,
+			default=[40, 50],
+			help='epochs at which to decay the learning rate')
+	parser.add_argument('--warmup', type=float, default=None,
+			help='how long the learning rate will be warmed up in fraction of epochs')
+	parser.add_argument('--warmup-factor', type=int, default=0,
+			help='mlperf rule parameter for controlling warmup curve')
+	parser.add_argument('--perf-prerun-warmup', type=int, default=5,
+			help='how much iterations to pre run before performance test, -1 mean use all dataset.')
+	parser.add_argument('--perf-run-iters', type=int, default=0,
+			help='how much iterations to run performance test, 0 mean use all dataset.')
+	parser.add_argument('--lr', type=float, default=2.5e-3,
+			help='base learning rate')
+	
+	# Distributed stuff
+	parser.add_argument('--local_rank', default=0, type=int,
+			help='Used for multi-process training. Can either be manually set ' +
+			'or automatically set by using \'python -m multiproc\'.')
+	parser.add_argument('--profile', action='store_true', default=False)
+	
+	return parser.parse_args()
 
 
 def save_time(file_name, content):
@@ -192,6 +196,10 @@ def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
 
     batch_time_list = []
     start = time.time()
+    if args.triton_cpu:
+        print("run with triton cpu backend")
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
     if args.compile:
         model = torch.compile(model, backend=args.backend, options={"freezing": True})
     for idx, image_id in enumerate(coco.img_keys):
