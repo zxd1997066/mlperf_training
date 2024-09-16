@@ -48,6 +48,8 @@ def main():
                     help="enable torch.compile")
     parser.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
+    parser.add_argument("--triton_cpu", action='store_true', default=False,
+                    help="enable triton_cpu")
     args = parser.parse_args()
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -82,6 +84,10 @@ def main():
     model = build_detection_model(cfg)
     model.to(cfg.MODEL.DEVICE)
     # NHWC
+    if args.triton_cpu:
+        print("run with triton cpu backend")
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
     if args.channels_last:
         model = model.to(memory_format=torch.channels_last)
         print("---- Use NHWC model")
