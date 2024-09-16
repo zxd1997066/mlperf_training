@@ -184,7 +184,8 @@ def parse_args():
                     help="enable torch.compile")
     val.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
-
+    val.add_argument("--triton_cpu", action='store_true', default=False,
+                    help="enable triton_cpu")
     # test
     test = parser.add_argument_group('test setup')
     test.add_argument('--test-batch-size', default=128, type=int,
@@ -490,6 +491,10 @@ def main():
 
         # evaluate on validation set
         if args.eval:
+            if args.triton_cpu:
+                print("run with triton cpu backend")
+                import torch._inductor.config
+                torch._inductor.config.cpu_backend="triton"
             logging.info(f'Running validation on dev set')
             if args.precision == "bfloat16":
                 print('---- Enable AMP bfloat16')
