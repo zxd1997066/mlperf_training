@@ -84,6 +84,8 @@ def parse_args():
                     help="enable torch.compile")
     parser.add_argument("--backend", type=str, default='inductor',
                     help="enable torch.compile backend")
+    parser.add_argument("--triton_cpu", action='store_true', default=False,
+                    help="enable triton_cpu")
     return parser.parse_args()
 
 
@@ -212,6 +214,10 @@ def val_epoch(model, opt, x, y, dup_mask, real_indices, K, samples_per_user, num
 def main():
 
     args = parse_args()
+    if args.triton_cpu:
+        print("run with triton cpu backend")
+        import torch._inductor.config
+        torch._inductor.config.cpu_backend="triton"
     print(args)
     if args.seed is not None:
         print("Using seed = {}".format(args.seed))
