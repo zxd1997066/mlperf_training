@@ -212,7 +212,7 @@ def val_epoch(model, opt, x, y, dup_mask, real_indices, K, samples_per_user, num
 
 
 def main():
-
+    import torch
     args = parse_args()
     if args.triton_cpu:
         print("run with triton cpu backend")
