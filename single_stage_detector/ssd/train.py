@@ -168,7 +168,7 @@ def dboxes300_coco():
 def coco_eval(model, coco, cocoGt, encoder, inv_map, threshold,
               epoch, iteration, args, use_cuda=True, bench_mark=True):
     from pycocotools.cocoeval import COCOeval
-
+    import torch
     batch_time = AverageMeter('Time', ':6.3f')
 
     print("")
