@@ -271,6 +271,7 @@ def main():
     """
     Launches data-parallel multi-gpu training.
     """
+    import torch
     mlperf_log.ROOT_DIR_GNMT = os.path.dirname(os.path.abspath(__file__))
     mlperf_log.LOGGER.propagate = False
 
