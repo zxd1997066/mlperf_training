@@ -54,7 +54,7 @@ def main():
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     distributed = num_gpus > 1
-
+    import torch
     if distributed:
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(
